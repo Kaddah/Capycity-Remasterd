@@ -79,6 +79,10 @@ void placeBuilding(FieldType **blueprint, int length, int width) {
 
     FieldType selectedFieldType = selectFieldType();
 
+    if (selectedFieldType == EMPTY) {
+        return;
+    }
+
     std::cout << "Enter a start position X (0 - " << length - 1 << "): ";
     int x = getInteger();
 
@@ -97,7 +101,7 @@ void placeBuilding(FieldType **blueprint, int length, int width) {
     }
 
     for (int row = y; row < y + buildingWidth; row++) {
-        for (int col = x; col < std::min(length, x + buildingLength); col++) {
+        for (int col = x; col < x + buildingLength; col++) {
             if (blueprint[row][col] != EMPTY) {
                 std::cout << "Space is already occupied!" << std::endl;
                 return;
@@ -106,7 +110,7 @@ void placeBuilding(FieldType **blueprint, int length, int width) {
     }
 
     for (int row = y; row < y + buildingWidth; row++) {
-        for (int col = x; col < std::min(length, x + buildingLength); col++) {
+        for (int col = x; col < x + buildingLength; col++) {
             blueprint[row][col] = selectedFieldType;
         }
     }
