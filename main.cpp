@@ -76,11 +76,12 @@ protected:
     char label;
     char *name;
     std::map<Material *, int> materials;
+    int capacity;
 
 protected:
-    Building(int basePrice, char label, char *name, std::map<Material *, int> materials) : basePrice(basePrice),
+    Building(int basePrice, char label, char *name, std::map<Material *, int> materials, int capacity) : basePrice(basePrice),
                                                                                          label(label), name(name),
-                                                                                         materials(materials) {}
+                                                                                         materials(materials), capacity(capacity) {}
 
 public:
     char *getName() const {
@@ -108,12 +109,16 @@ public:
         }
         return basePrice + materialPrice;
     }
+
+    int getCapacity() const {
+        return capacity;
+    }
 };
 
 class WaterEnergyPlant : public Building {
 private:
-    WaterEnergyPlant() : Building(1, 'W', "WaterEngeryPlant",
-                                  {{&Wood::instance(),2}, {&Plastic::instance(), 2}, { &Metal::instance(), 1}}) {}
+    WaterEnergyPlant() : Building(1, 'W', "WaterEnergyPlant",
+                                  {{&Wood::instance(),2}, {&Plastic::instance(), 2}, { &Metal::instance(), 1}}, 403) {}
 
 public:
     static WaterEnergyPlant &instance() {
@@ -124,8 +129,8 @@ public:
 
 class SolarEnergyPlant : public Building {
 private:
-    SolarEnergyPlant() : Building(1, 'S', "SolarEnegeryPlant",
-                                  {{&Plastic::instance(), 3}, {&Metal::instance(),2}}) {}
+    SolarEnergyPlant() : Building(1, 'S', "SolarEnergyPlant",
+                                  {{&Plastic::instance(), 3}, {&Metal::instance(),2}}, 201) {}
 
 public:
     static SolarEnergyPlant &instance() {
@@ -137,7 +142,7 @@ public:
 class WindEnergyPlant : public Building {
 private:
     WindEnergyPlant() : Building(1, 'I', "WindEnergyPlant",
-                                 {{&Wood::instance(),2}, {&Plastic::instance(),1}, { &Metal::instance(),2}}) {}
+                                 {{&Wood::instance(),2}, {&Plastic::instance(),1}, { &Metal::instance(),2}}, 333) {}
 
 public:
     static WindEnergyPlant &instance() {
@@ -146,29 +151,141 @@ public:
     }
 };
 
-class CapyCitySim {
+class Blueprint {
 protected:
     int length;
     int width;
-    Building ***blueprint;
+    Building ***buildings;
 public:
-    CapyCitySim(int length, int width) : length(length), width(width) {
-        createBlueprint();
-    }
-
-    ~CapyCitySim() {
+    Blueprint(int length, int width) : length(length), width(width) {
+        buildings = new Building **[width];
         for (int row = 0; row < width; row++) {
-            delete blueprint[row];
+            buildings[row] = new Building *[length];
+            for (int col = 0; col < length; col++) {
+                buildings[row][col] = nullptr;
+            }
         }
-        delete blueprint;
     }
 
+    ~Blueprint() {
+        for (int row = 0; row < width; row++) {
+            delete buildings[row];
+        }
+        delete buildings;
+    }
+
+    // Is this your mentioned functor?
+    bool operator()(Blueprint *blueprint) const {
+        if (length != blueprint->length || width != blueprint->width){
+            return false;
+        }
+
+        for(int row = 0; row < width; row++) {
+            for(int col = 0; col < length; col++) {
+                if (buildings[row][col]  != blueprint->buildings[row][col]) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    float getMetric() const {
+        int capacity = 0;
+        int totalCost = 0;
+        int area = width * length;
+
+        for(int row = 0; row < width; row++) {
+            for (int col = 0; col < length; col++) {
+                Building *building = buildings[row][col];
+                if (building == nullptr) {
+                    continue;
+                }
+                capacity += building->getCapacity();
+                totalCost += building->getTotalCosts();
+            }
+        }
+
+        if (totalCost * area == 0) {
+            return 0;
+        }
+
+        return float(capacity) / (float)(totalCost * area);
+    }
+
+    bool placeBuilding(Building *building, int x, int y, int length, int width) {
+        for (int row = y; row < y + width; row++) {
+            for (int col = x; col < x + length; col++) {
+                if (buildings[row][col] != nullptr) {
+                    return false;
+                }
+            }
+        }
+
+        for (int row = y; row < y + width; row++) {
+            for (int col = x; col < x + length; col++) {
+                buildings[row][col] = building;
+            }
+        }
+        return true;
+    }
 
     bool isInBounds(int x, int y, int length, int width) const {
 
         return 0 <= x && 0 <= x + length && x + length <= this->length
                && 0 <= y && 0 <= y + width && y + width <= this->width;
 
+    }
+
+    void deleteArea(int x, int y, int length, int width) {
+        for (int row = y; row < y + width; row++) {
+            for (int col = x; col < x + length; col++) {
+                buildings[row][col] = nullptr;
+            }
+        }
+    }
+
+    Building ***getBuildings() const {
+        return buildings;
+    }
+
+    std::map<Building*, int> countBuildings() const {
+        std::map<Building *, int> buildingCount;
+        for (int row = 0; row < width; row++) {
+            for (int col = 0; col < length; col++) {
+                Building *building = buildings[row][col];
+                if (building == nullptr) {
+                    continue;
+                }
+
+                if (buildingCount.contains(building)) {
+                    buildingCount[building] += 1;
+                } else {
+                    buildingCount.insert({building, 1});
+                }
+            }
+        }
+        return buildingCount;
+    }
+};
+
+class CapyCitySim {
+protected:
+    int length;
+    int width;
+    std::vector<Blueprint*> blueprints;
+    Blueprint* blueprint;
+public:
+    CapyCitySim(int length, int width) : length(length), width(width) {
+        blueprint = new Blueprint(length, width);
+    }
+
+    ~CapyCitySim() {
+        delete blueprint;
+        for(auto blueprint : blueprints) {
+            delete blueprint;
+        }
     }
 
     void loop() {
@@ -178,7 +295,8 @@ public:
             std::cout << "1) Place Building" << std::endl;
             std::cout << "2) Delete Area" << std::endl;
             std::cout << "3) Show current construction plan" << std::endl;
-            std::cout << "4) Quit" << std::endl;
+            std::cout << "4) Add new construction plan" << std::endl;
+            std::cout << "5) Quit" << std::endl;
             std::cout << std::endl;
 
             std::cout << "Please select a number: ";
@@ -194,9 +312,20 @@ public:
                     deleteArea();
                     break;
                 case '3':
-                    showConstructionPlan();
+                    std::sort(blueprints.begin(), blueprints.end(), [](Blueprint* a, Blueprint* b) { return a->getMetric() > a->getMetric(); });
+                    std::cout << "Saved plans:" << std::endl;
+                    for(auto blueprint : blueprints) {
+                        showConstructionPlan(blueprint);
+                    }
+
+                    std::cout << "Current plan:" << std::endl;
+                    showConstructionPlan(blueprint);
+                    system("pause");
                     break;
                 case '4':
+                    createBlueprint();
+                    break;
+                case '5':
                     return;
                 default:
                     std::cout << "Not a valid option" << std::endl;
@@ -205,30 +334,32 @@ public:
     }
 
     void createBlueprint() {
-        blueprint = new Building **[width];
-        for (int row = 0; row < width; row++) {
-            blueprint[row] = new Building *[length];
-            for (int col = 0; col < length; col++) {
-                blueprint[row][col] = nullptr;
+        for(auto blueprint : blueprints) {
+            if (this->blueprint->operator()(blueprint)) {
+                std::cout << "This Plan already exists." << std::endl;
+                std::cout << "Drop current plan and create new? (y/N): ";
+                char input;
+                std::cin >> input;
+                if (tolower(input) == 'y') {
+                    blueprint = new Blueprint(length, width);
+                }
+                return;
             }
         }
+        blueprints.push_back(blueprint);
+        blueprint = new Blueprint(length, width);
     }
 
-    void showConstructionPlan() {
-        std::map<Building *, int> buildingCount;
+    void showConstructionPlan(Blueprint* blueprint) {
+        Building *** buildings = blueprint->getBuildings();
+        std::map<Building *, int> buildingCount = blueprint->countBuildings();
         int buildingsCounter = 0;
         for (int row = 0; row < width; row++) {
             for (int col = 0; col < length; col++) {
-                Building *building = blueprint[row][col];
+                Building *building = buildings[row][col];
                 if (building == nullptr) {
                     std::cout << "~";
                     continue;
-                }
-
-                if (buildingCount.contains(building)) {
-                    buildingCount[building] += 1;
-                } else {
-                    buildingCount.insert({building, 1});
                 }
                 std::cout << building->getLabel();
                 buildingsCounter++;
@@ -256,7 +387,7 @@ public:
         }
 
         std::cout << "Total plan costs $" << totalCosts << std::endl;
-        system("pause");
+        std::cout << "Planmetric " << blueprint->getMetric() << std::endl;
 
     }
 
@@ -310,27 +441,18 @@ public:
         std::cout << "Enter the width of the Building: ";
         int width = getInteger();
 
-        if (!isInBounds(x, y, length, width)) {
+        if (!blueprint->isInBounds(x, y, length, width)) {
             std::cout << "Input is outside the construction area." << std::endl;
             system("pause");
             return;
         }
 
-        for (int row = y; row < y + width; row++) {
-            for (int col = x; col < x + length; col++) {
-                if (blueprint[row][col] != nullptr) {
-                    std::cout << "Space is already occupied!" << std::endl;
-                    system("pause");
-                    return;
-                }
-            }
+        bool placed = blueprint->placeBuilding(selectedBuilding, x, y, length, width);
+        if (!placed) {
+            std::cout << "Space is already occupied!" << std::endl;
+            system("pause");
         }
 
-        for (int row = y; row < y + width; row++) {
-            for (int col = x; col < x + length; col++) {
-                blueprint[row][col] = selectedBuilding;
-            }
-        }
     }
 
 
@@ -348,17 +470,13 @@ public:
         std::cout << "Enter the width of the area to delete: ";
         int width = getInteger();
 
-        if (!isInBounds(x, y, length, width)) {
+        if (!blueprint->isInBounds(x, y, length, width)) {
             std::cout << "Input is outside the construction area." << std::endl;
             system("pause");
             return;
         }
 
-        for (int row = y; row < y + width; row++) {
-            for (int col = x; col < x + length; col++) {
-                blueprint[row][col] = nullptr;
-            }
-        }
+        blueprint->deleteArea(x,y,length, width);
     }
 
 };
