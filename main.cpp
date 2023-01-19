@@ -75,10 +75,10 @@ protected:
     int basePrice;
     char label;
     char *name;
-    std::vector<Material *> materials;
+    std::map<Material *, int> materials;
 
 protected:
-    Building(int basePrice, char label, char *name, std::vector<Material *> materials) : basePrice(basePrice),
+    Building(int basePrice, char label, char *name, std::map<Material *, int> materials) : basePrice(basePrice),
                                                                                          label(label), name(name),
                                                                                          materials(materials) {}
 
@@ -95,14 +95,16 @@ public:
         return basePrice;
     }
 
-    std::vector<Material *> getMaterials() const {
+    std::map<Material *, int> getMaterials() const {
         return materials;
     }
 
     int getTotalCosts() const {
         int materialPrice = 0;
-        for (auto material: materials) {
-            materialPrice += material->getPrice();
+        for (auto iter: materials) {
+            Material *material = iter.first;
+            int count = iter.second;
+            materialPrice += material->getPrice() * count;
         }
         return basePrice + materialPrice;
     }
@@ -111,8 +113,7 @@ public:
 class WaterEnergyPlant : public Building {
 private:
     WaterEnergyPlant() : Building(1, 'W', "WaterEngeryPlant",
-                                  {&Wood::instance(), &Wood::instance(), &Plastic::instance(), &Plastic::instance(),
-                                   &Metal::instance()}) {}
+                                  {{&Wood::instance(),2}, {&Plastic::instance(), 2}, { &Metal::instance(), 1}}) {}
 
 public:
     static WaterEnergyPlant &instance() {
@@ -124,8 +125,7 @@ public:
 class SolarEnergyPlant : public Building {
 private:
     SolarEnergyPlant() : Building(1, 'S', "SolarEnegeryPlant",
-                                  {&Plastic::instance(), &Plastic::instance(), &Plastic::instance(), &Metal::instance(),
-                                   &Metal::instance()}) {}
+                                  {{&Plastic::instance(), 3}, {&Metal::instance(),2}}) {}
 
 public:
     static SolarEnergyPlant &instance() {
@@ -137,8 +137,7 @@ public:
 class WindEnergyPlant : public Building {
 private:
     WindEnergyPlant() : Building(1, 'I', "WindEnergyPlant",
-                                 {&Wood::instance(), &Wood::instance(), &Plastic::instance(), &Metal::instance(),
-                                  &Metal::instance()}) {}
+                                 {{&Wood::instance(),2}, {&Plastic::instance(),1}, { &Metal::instance(),2}}) {}
 
 public:
     static WindEnergyPlant &instance() {
@@ -159,9 +158,6 @@ public:
 
     ~CapyCitySim() {
         for (int row = 0; row < width; row++) {
-            for (int col = 0; col < length; col++) {
-                delete blueprint[row][col];
-            }
             delete blueprint[row];
         }
         delete blueprint;
@@ -248,8 +244,8 @@ public:
             totalCosts += building->getTotalCosts() * counter;
             std::cout << building->getName() << " costs $" << building->getTotalCosts() << " including:" << std::endl;
             std::cout << "\tbase price of $" << building->getBasePrice() << std::endl;
-            for (auto material: building->getMaterials()) {
-                std::cout << "\t" << material->getName() << " $" << material->getPrice() << std::endl;
+            for (auto materialIter: building->getMaterials()) {
+                std::cout << "\t" << materialIter.second << "x " << materialIter.first->getName() << " $" << materialIter.first->getPrice() << std::endl;
             }
         }
         std::cout << std::endl;
