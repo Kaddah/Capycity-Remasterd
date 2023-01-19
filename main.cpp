@@ -1,11 +1,7 @@
 #include <iostream>
-
-bool isInBounds(int totalLength, int totalWidth, int x, int y, int length, int width) {
-
-    return 0 <= x && 0 <= x + length && x + length <= totalLength
-           && 0 <= y && 0 <= y + width && y + width <= totalWidth;
-
-}
+#include <vector>
+#include <set>
+#include <map>
 
 int getInteger() {
 
@@ -15,180 +11,361 @@ int getInteger() {
         if (std::cin.fail()) {
             std::cin.clear();
             std::cin.ignore();
-            std::cerr << "Invalid input: must be a number" << std::endl;
+            std::cerr << "Invalid input: must be a number! Try again: ";
         } else {
             return result;
         }
     } while (true);
 
-
 }
 
-enum FieldType : char {
-    EMPTY = 'E',
-    WATER_ENERGY_PLANT = 'W',
-    SOLAR_ENERGY_PLANT = 'S',
-    WIND_ENERGY_PLANT = 'I',
+class Material {
+protected:
+    int price;
+    char *name;
+
+protected:
+    Material(int price, char *name) : price(price), name(name) {}
+
+public:
+    char *getName() const {
+        return name;
+    }
+
+    int getPrice() const {
+        return price;
+    }
 };
 
-FieldType **createBlueprint(int length, int width) {
+class Wood : public Material {
+private:
+    Wood() : Material(1, "Wood") {}
 
-    FieldType **blueprint;
-    blueprint = new FieldType *[width];
-    for (int row = 0; row < width; row++) {
-        blueprint[row] = new FieldType[length];
-        for (int col = 0; col < length; col++) {
-            blueprint[row][col] = FieldType::EMPTY;
+public:
+    static Wood &instance() {
+        static Wood INSTANCE;
+        return INSTANCE;
+    }
+};
+
+class Plastic : public Material {
+private:
+    Plastic() : Material(2, "Plastic") {}
+
+public:
+    static Plastic &instance() {
+        static Plastic INSTANCE;
+        return INSTANCE;
+    }
+};
+
+class Metal : public Material {
+private:
+    Metal() : Material(3, "Metal") {}
+
+public:
+    static Metal &instance() {
+        static Metal INSTANCE;
+        return INSTANCE;
+    }
+};
+
+class Building {
+protected:
+    int basePrice;
+    char label;
+    char *name;
+    std::vector<Material *> materials;
+
+protected:
+    Building(int basePrice, char label, char *name, std::vector<Material *> materials) : basePrice(basePrice),
+                                                                                         label(label), name(name),
+                                                                                         materials(materials) {}
+
+public:
+    char *getName() const {
+        return name;
+    }
+
+    char getLabel() const {
+        return label;
+    }
+
+    int getBasePrice() const {
+        return basePrice;
+    }
+
+    std::vector<Material *> getMaterials() const {
+        return materials;
+    }
+
+    int getTotalCosts() const {
+        int materialPrice = 0;
+        for (auto material: materials) {
+            materialPrice += material->getPrice();
         }
+        return basePrice + materialPrice;
     }
-    return blueprint;
+};
 
-}
+class WaterEnergyPlant : public Building {
+private:
+    WaterEnergyPlant() : Building(1, 'W', "WaterEngeryPlant",
+                                  {&Wood::instance(), &Wood::instance(), &Plastic::instance(), &Plastic::instance(),
+                                   &Metal::instance()}) {}
 
+public:
+    static WaterEnergyPlant &instance() {
+        static WaterEnergyPlant INSTANCE;
+        return INSTANCE;
+    }
+};
 
-FieldType selectFieldType() {
+class SolarEnergyPlant : public Building {
+private:
+    SolarEnergyPlant() : Building(1, 'S', "SolarEnegeryPlant",
+                                  {&Plastic::instance(), &Plastic::instance(), &Plastic::instance(), &Metal::instance(),
+                                   &Metal::instance()}) {}
 
-    do {
-        std::cout << "W) Water energy plant" << std::endl;
-        std::cout << "S) Solar energy plant" << std::endl;
-        std::cout << "I) Wind energy plant" << std::endl;
-        std::cout << "B) Back" << std::endl;
+public:
+    static SolarEnergyPlant &instance() {
+        static SolarEnergyPlant INSTANCE;
+        return INSTANCE;
+    }
+};
 
-        std::cout << "Please select a building to place: ";
+class WindEnergyPlant : public Building {
+private:
+    WindEnergyPlant() : Building(1, 'I', "WindEnergyPlant",
+                                 {&Wood::instance(), &Wood::instance(), &Plastic::instance(), &Metal::instance(),
+                                  &Metal::instance()}) {}
 
-        char buildingSelected;
-        std::cin >> buildingSelected;
+public:
+    static WindEnergyPlant &instance() {
+        static WindEnergyPlant INSTANCE;
+        return INSTANCE;
+    }
+};
 
-        switch (toupper(buildingSelected)) {
-            case 'W':
-                return WATER_ENERGY_PLANT;
-            case 'S':
-                return SOLAR_ENERGY_PLANT;
-            case 'I':
-                return WIND_ENERGY_PLANT;
-            case 'B':
-                return EMPTY;
-            default:
-                std::cout << "Not a valid option" << std::endl;
+class CapyCitySim {
+protected:
+    int length;
+    int width;
+    Building ***blueprint;
+public:
+    CapyCitySim(int length, int width) : length(length), width(width) {
+        createBlueprint();
+    }
+
+    ~CapyCitySim() {
+        for (int row = 0; row < width; row++) {
+            for (int col = 0; col < length; col++) {
+                delete blueprint[row][col];
+            }
+            delete blueprint[row];
         }
-    } while (true);
-
-}
-
-void placeBuilding(FieldType **blueprint, int length, int width) {
-
-    FieldType selectedFieldType = selectFieldType();
-
-    if (selectedFieldType == EMPTY) {
-        return;
+        delete blueprint;
     }
 
-    std::cout << "Enter a start position X (0 - " << length - 1 << "): ";
-    int x = getInteger();
 
-    std::cout << "Enter a start position Y (0 - " << width - 1 << "): ";
-    int y = getInteger();
+    bool isInBounds(int x, int y, int length, int width) const {
 
-    std::cout << "Enter the length of the Building: ";
-    int buildingLength = getInteger();
+        return 0 <= x && 0 <= x + length && x + length <= this->length
+               && 0 <= y && 0 <= y + width && y + width <= this->width;
 
-    std::cout << "Enter the width of the Building: ";
-    int buildingWidth = getInteger();
-
-    if (!isInBounds(length, width, x, y, buildingLength, buildingWidth)) {
-        std::cout << "Input is outside the construction area." << std::endl;
-        return;
     }
 
-    for (int row = y; row < y + buildingWidth; row++) {
-        for (int col = x; col < x + buildingLength; col++) {
-            if (blueprint[row][col] != EMPTY) {
-                std::cout << "Space is already occupied!" << std::endl;
-                return;
+    void loop() {
+        std::cout << "Welcome to Capycity, please select an option: " << std::endl;
+
+        while (true) {
+            std::cout << "1) Place Building" << std::endl;
+            std::cout << "2) Delete Area" << std::endl;
+            std::cout << "3) Show current construction plan" << std::endl;
+            std::cout << "4) Quit" << std::endl;
+            std::cout << std::endl;
+
+            std::cout << "Please select a number: ";
+            char option;
+            std::cin >> option;
+            std::cout << std::endl;
+
+            switch (option) {
+                case '1':
+                    placeBuilding();
+                    break;
+                case '2':
+                    deleteArea();
+                    break;
+                case '3':
+                    showConstructionPlan();
+                    break;
+                case '4':
+                    return;
+                default:
+                    std::cout << "Not a valid option" << std::endl;
             }
         }
     }
 
-    for (int row = y; row < y + buildingWidth; row++) {
-        for (int col = x; col < x + buildingLength; col++) {
-            blueprint[row][col] = selectedFieldType;
+    void createBlueprint() {
+        blueprint = new Building **[width];
+        for (int row = 0; row < width; row++) {
+            blueprint[row] = new Building *[length];
+            for (int col = 0; col < length; col++) {
+                blueprint[row][col] = nullptr;
+            }
         }
     }
-}
 
-void deleteArea(FieldType **blueprint, int length, int width) {
+    void showConstructionPlan() {
+        std::map<Building *, int> buildingCount;
+        int buildingsCounter = 0;
+        for (int row = 0; row < width; row++) {
+            for (int col = 0; col < length; col++) {
+                Building *building = blueprint[row][col];
+                if (building == nullptr) {
+                    std::cout << "~";
+                    continue;
+                }
 
-    std::cout << "Enter a start position X (0 - " << length - 1 << "): ";
-    int x = getInteger();
-
-    std::cout << "Enter a start position Y (0 - " << width - 1 << "): ";
-    int y = getInteger();
-
-    std::cout << "Enter the length of the area to delete: ";
-    int buildingLength = getInteger();
-
-    std::cout << "Enter the width of the area to delete: ";
-    int buildingWidth = getInteger();
-
-    if (!isInBounds(length, width, x, y, buildingLength, buildingWidth)) {
-        std::cout << "Input is outside the construction area." << std::endl;
-        return;
-    }
-
-    for (int row = y; row < y + buildingWidth; row++) {
-        for (int col = x; col < x + buildingLength; col++) {
-            blueprint[row][col] = EMPTY;
+                if (buildingCount.contains(building)) {
+                    buildingCount[building] += 1;
+                } else {
+                    buildingCount.insert({building, 1});
+                }
+                std::cout << building->getLabel();
+                buildingsCounter++;
+            }
+            std::cout << std::endl;
         }
-    }
-}
 
-void showConstructionPlan(FieldType **blueprint, int length, int width) {
-
-    for (int row = 0; row < width; row++) {
-        for (int col = 0; col < length; col++) {
-            std::cout << blueprint[row][col];
+        int totalCosts = 0;
+        for (auto count: buildingCount) {
+            std::cout << std::endl;
+            Building *building = count.first;
+            int counter = count.second;
+            totalCosts += building->getTotalCosts() * counter;
+            std::cout << building->getName() << " costs $" << building->getTotalCosts() << " including:" << std::endl;
+            std::cout << "\tbase price of $" << building->getBasePrice() << std::endl;
+            for (auto material: building->getMaterials()) {
+                std::cout << "\t" << material->getName() << " $" << material->getPrice() << std::endl;
+            }
         }
         std::cout << std::endl;
+        for(auto count : buildingCount) {
+            Building *building = count.first;
+            int counter = count.second;
+            std::cout << counter << "x " << building->getName() << " for $" <<  (counter * building->getTotalCosts()) << std::endl;
+        }
+
+        std::cout << "Total plan costs $" << totalCosts << std::endl;
+        system("pause");
+
     }
-    system("pause");
 
-}
+    Building *selectBuilding() {
 
-void capycity(int length, int width) {
+        do {
+            std::cout << std::endl;
+            std::cout << "W) Water energy plant" << std::endl;
+            std::cout << "S) Solar energy plant" << std::endl;
+            std::cout << "I) Wind energy plant" << std::endl;
+            std::cout << "B) Back" << std::endl;
 
-    std::cout << "Welcome to Capycity, please select an option: " << std::endl;
+            std::cout << "Please select a building to place: ";
 
-    FieldType **blueprint = createBlueprint(length, width);
+            char buildingSelected;
+            std::cin >> buildingSelected;
 
-    while (true) {
-        std::cout << "1) Place Building" << std::endl;
-        std::cout << "2) Delete Area" << std::endl;
-        std::cout << "3) Show current construction plan" << std::endl;
-        std::cout << "4) Quit" << std::endl;
-        std::cout << std::endl;
+            switch (toupper(buildingSelected)) {
+                case 'W':
+                    return &WaterEnergyPlant::instance();
+                case 'S':
+                    return &SolarEnergyPlant::instance();
+                case 'I':
+                    return &WindEnergyPlant::instance();
+                case 'B':
+                    return nullptr;
+                default:
+                    std::cout << "Not a valid option" << std::endl;
+            }
+        } while (true);
 
-        std::cout << "Please select a number: ";
-        char option;
-        std::cin >> option;
+    }
 
-        switch (option) {
-            case '1':
-                placeBuilding(blueprint, length, width);
-                break;
-            case '2':
-                deleteArea(blueprint, length, width);
-                break;
-            case '3':
-                showConstructionPlan(blueprint, length, width);
-                break;
-            case '4':
-                return;
-            default:
-                std::cout << "Not a valid option" << std::endl;
+    void placeBuilding() {
+
+        Building *selectedBuilding = selectBuilding();
+
+        if (selectedBuilding == nullptr) {
+            return;
+        }
+
+        std::cout << "Enter a start position X (0 - " << this->length - 1 << "): ";
+        int x = getInteger();
+
+        std::cout << "Enter a start position Y (0 - " << this->width - 1 << "): ";
+        int y = getInteger();
+
+        std::cout << "Enter the length of the Building: ";
+        int length = getInteger();
+
+        std::cout << "Enter the width of the Building: ";
+        int width = getInteger();
+
+        if (!isInBounds(x, y, length, width)) {
+            std::cout << "Input is outside the construction area." << std::endl;
+            system("pause");
+            return;
+        }
+
+        for (int row = y; row < y + width; row++) {
+            for (int col = x; col < x + length; col++) {
+                if (blueprint[row][col] != nullptr) {
+                    std::cout << "Space is already occupied!" << std::endl;
+                    system("pause");
+                    return;
+                }
+            }
+        }
+
+        for (int row = y; row < y + width; row++) {
+            for (int col = x; col < x + length; col++) {
+                blueprint[row][col] = selectedBuilding;
+            }
         }
     }
 
-}
+
+    void deleteArea() {
+
+        std::cout << "Enter a start position X (0 - " << length - 1 << "): ";
+        int x = getInteger();
+
+        std::cout << "Enter a start position Y (0 - " << width - 1 << "): ";
+        int y = getInteger();
+
+        std::cout << "Enter the length of the area to delete: ";
+        int length = getInteger();
+
+        std::cout << "Enter the width of the area to delete: ";
+        int width = getInteger();
+
+        if (!isInBounds(x, y, length, width)) {
+            std::cout << "Input is outside the construction area." << std::endl;
+            system("pause");
+            return;
+        }
+
+        for (int row = y; row < y + width; row++) {
+            for (int col = x; col < x + length; col++) {
+                blueprint[row][col] = nullptr;
+            }
+        }
+    }
+
+};
 
 int main(int argc, char **argv) {
 
@@ -201,7 +378,8 @@ int main(int argc, char **argv) {
     try {
         int length = std::stoi(argv[1]);
         int width = std::stoi(argv[2]);
-        capycity(length, width);
+        CapyCitySim capyCitySim(length, width);
+        capyCitySim.loop();
     }
     catch (std::invalid_argument const &ex) {
         std::cout << "Input must be of 2 integer numbers." << std::endl;
